@@ -1,45 +1,51 @@
+import argparse
 from openai_api import setup_openai
 from memory_module import setup_memory
 from tools import create_summarize_tool, create_refine_tool
+from file_manager import read_input_file, parse_input_file
+from inbox_processor import process_inbox_item
 
-# Set up language model
-llm = setup_openai()
+def process_single_item(summarize_chain, refine_chain, memory):
+    item = input("Item: ")
+    final_summary = process_inbox_item(item, summarize_chain, refine_chain, memory)
+    return final_summary
 
-# Set up memory
-memory = setup_memory()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("file_path", help="Path to the text or markdown file.", nargs='?', default=None)
+    args = parser.parse_args()
 
-# Define tools
-summarize_chain = create_summarize_tool(llm, memory)
-refine_chain = create_refine_tool(llm, memory)
+    file_path = args.file_path
 
-# Get the inbox item
-item = input("Item: ")
-memory.chat_memory.add_user_message(f"Here is an item from my inbox: {item}. I would like for you to fully understand my reason for writing this inbox item down so you can help me rewrite it concisely and clearly.")
+    # Set up language model
+    llm = setup_openai()
 
-# Check for understanding
-summary = summarize_chain.predict(human_input="Please concisely and clearly summarize your current understanding of this inbox item.")
-print(f"Summary: {summary}")
+    # Set up memory
+    memory = setup_memory()
 
-isCorrect = "y"
-isCorrect = input("Correct? (Y/n)")
+    # Define tools
+    summarize_chain = create_summarize_tool(llm, memory)
+    refine_chain = create_refine_tool(llm, memory)
 
-# If necessary, ask clarifying questions
-while (isCorrect.lower() == "n"):
-    # Formulate questions
-    questions = refine_chain.run(input=item)
-    print(questions)
-    memory.chat_memory.add_ai_message(questions)
-    
-    # Receive answers
-    answers = input("Answers: ")
-    memory.chat_memory.add_user_message(answers)
+    if file_path is not None:
+        content = read_input_file(file_path)
+        inbox_items = parse_input_file(content)
 
-    # Check for understanding
-    summary = summarize_chain.predict(human_input="Please concisely and clearly summarize your current understanding of this inbox item.")
-    print(f"Summary: {summary}")
+        with open('inbox-clarified.md', 'a') as output_file:
+            for item in inbox_items:
+                final_summary = process_inbox_item(item, summarize_chain, refine_chain, memory)
+                stripped_summary = final_summary.strip()
+                output_file.write(f"- {stripped_summary}\n")
 
-    isCorrect = input("Correct? (Y/n)")
+    else:
+        while True:
+            final_summary = process_single_item(summarize_chain, refine_chain, memory)
+            stripped_summary = final_summary.strip()
 
-final_summary = summarize_chain.predict(human_input="You now have the correct understanding. Please summarize this item concisely and clearly, as if it was written by the user as a 'note to self'.")
-print(f"Final Summary: {final_summary}")
+            with open('inbox-clarified.md', 'a') as output_file:
+                output_file.write(f"- {stripped_summary}\n")
+
+            continue_processing = input("Process another item? (Y/n): ")
+            if continue_processing.lower() == 'n':
+                break
 
