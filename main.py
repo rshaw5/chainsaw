@@ -13,9 +13,11 @@ def process_single_item(summarize_chain, refine_chain, memory):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file_path", help="Path to the text or markdown file.", nargs='?', default=None)
+    parser.add_argument("-v", "--verbose", help="Toggle verbose output.", action="store_true")
     args = parser.parse_args()
 
     file_path = args.file_path
+    verbose = args.verbose
 
     # Set up language model
     llm = setup_openai()
@@ -24,8 +26,8 @@ if __name__ == "__main__":
     memory = setup_memory()
 
     # Define tools
-    summarize_chain = create_summarize_tool(llm, memory)
-    refine_chain = create_refine_tool(llm, memory)
+    summarize_chain = create_summarize_tool(llm, memory, verbose=verbose)
+    refine_chain = create_refine_tool(llm, memory, verbose=verbose)
 
     if file_path is not None:
         content = read_input_file(file_path)
